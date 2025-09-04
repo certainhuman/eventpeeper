@@ -3,7 +3,7 @@
   "name": "Event Peeper",
   "short_name": "EventPeeper",
   "description": "Queries an unofficial Drednot event API and shows the retrieved information on upcoming events in a popup.",
-  "version": "1.1.2",
+  "version": "1.1.4",
 
   "browser_action": {
     "default_title": "Event Peeper",
@@ -20,8 +20,7 @@
 
   "permissions": [
     "https://event-api.certainhuman.com/*",
-    "alarms",
-    "storage"
+    "alarms"
   ],
 
   "background": {
@@ -42,6 +41,5 @@
     "url": "https://github.com/certainhuman/"
   },
 
-  "incognito": "spanning",
-  "offline_enabled": false
+  "incognito": "spanning"
 }
