@@ -18,7 +18,6 @@
     "https://event-api.certainhuman.com/*"
   ],
   "permissions": [
-    "storage",
     "alarms"
   ],
   "background": {
