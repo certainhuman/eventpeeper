@@ -1,34 +1,27 @@
 const elems = {
   content: document.getElementById('content'),
-  status: document.getElementById('status'),
-  details: document.getElementById('details'),
-  eventRow: document.getElementById('eventRow'),
-  timeRow: document.getElementById('timeRow'),
-  closeRow: document.getElementById('closeRow'),
-  eventName: document.getElementById('eventName'),
-  timeLabel: document.getElementById('timeLabel'),
-  timeValue: document.getElementById('timeValue'),
-  closeTime: document.getElementById('closeTime'),
-  countdownRow: document.getElementById('countdownRow'),
-  countdown: document.getElementById('countdown'),
   error: document.getElementById('error'),
   refreshBtn: document.getElementById('refreshBtn'),
+  summary0: document.getElementById('summary-0'),
+  summary1: document.getElementById('summary-1'),
 };
 
-let countdownTimer = null;
+let countdownTimers = { 0: null, 1: null };
 
 /**
- * Formats a UNIX timestamp (in seconds) into a localized date/time string.
- * @param {number} tsSec - UNIX timestamp in seconds.
- * @returns {string} Localized date/time, or an empty string if input is not a number.
+ * Formats a UNIX timestamp (in seconds) to HH:MM in local time.
  */
-function formatDate(tsSec) {
+function hhmm(tsSec) {
   if (typeof tsSec !== 'number') return '';
   const d = new Date(tsSec * 1000);
-  return d.toLocaleString(undefined, {
-    year: 'numeric', month: 'short', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
+  // Prefer 12-hour without leading zero, falling back to locale default if unsupported
+  // Many browsers respect hourCycle: 'h12' which yields 1:30 AM instead of 01:30 AM.
+  try {
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true, hourCycle: 'h12' });
+  } catch {
+    // Fallback: use hour:'numeric' and minute:'2-digit' (most locales will omit leading zero in 12h if hour12 true)
+    return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
 }
 
 /**
@@ -75,155 +68,137 @@ function clearError() {
 }
 
 /**
- * Stops the active countdown interval, if any, and clears the timer handle.
+ * Manage per-server countdown intervals that re-render the concise summary.
  */
-function stopCountdown() {
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
+function clearTimer(server) {
+  if (countdownTimers[server]) {
+    clearInterval(countdownTimers[server]);
+    countdownTimers[server] = null;
   }
+}
+function startTimer(server, targetTsSec, renderFn) {
+  clearTimer(server);
+  if (!targetTsSec) return;
+  const tick = () => renderFn();
+  countdownTimers[server] = setInterval(tick, 1000);
 }
 
 /**
- * Starts a 1-second interval to update the countdown display until cleared.
- * If no target is provided, the countdown row is hidden.
- * @param {number} targetTsSec - Target UNIX timestamp in seconds.
+ * Build concise text for one server snapshot
  */
-function startCountdown(targetTsSec) {
-  stopCountdown();
-  if (!targetTsSec) {
-    elems.countdownRow.style.display = 'none';
-    return;
-  }
-  const update = () => {
-    elems.countdown.textContent = formatCooldown(targetTsSec);
-  };
-  elems.countdownRow.style.display = '';
-  update();
-  countdownTimer = setInterval(update, 1000);
-}
-
-/**
- * Renders the popup UI based on the API response payload.
- * Controls which rows are shown, sets labels/values, and starts/stops countdowns.
- * @param {{type:string,event?:{id:number,event_type_id:number,name:string,open_time:number,close_time?:number},predicted_open_time?:number}} data
- */
-function render(data) {
-  clearError();
-  stopCountdown();
-
+function buildSummary(snapshot) {
+  if (!snapshot) return 'Loading…';
+  const { data, error, loading } = snapshot;
+  if (error) return error;
+  if (loading && !data) return 'Loading…';
   const type = data?.type;
-  elems.details.style.display = 'none';
-  if (elems.eventRow) elems.eventRow.style.display = 'none';
-  if (elems.timeRow) elems.timeRow.style.display = 'none';
-  if (elems.closeRow) elems.closeRow.style.display = 'none';
-  elems.closeTime.textContent = '';
-  elems.eventName.textContent = '';
-  elems.timeLabel.textContent = '';
-  elems.timeValue.textContent = '';
-  elems.countdownRow.style.display = 'none';
-
+  const evt = data?.event || {};
+  const name = evt?.name || 'Unknown';
   if (type === 'open') {
-    elems.status.textContent = 'Open';
-    elems.details.style.display = '';
-    if (elems.eventRow) elems.eventRow.style.display = '';
-    if (elems.timeRow) elems.timeRow.style.display = '';
-    elems.eventName.textContent = data.event?.name ?? '';
-    elems.timeLabel.textContent = 'Opened:';
-    elems.timeValue.textContent = formatDate(data.event?.open_time);
-    if (data.event?.close_time) {
-      if (elems.closeRow) elems.closeRow.style.display = '';
-      elems.closeTime.textContent = formatDate(data.event.close_time);
-      startCountdown(data.event.close_time);
-    }
-  } else if (type === 'announced') {
-    elems.status.textContent = 'Announced';
-    elems.details.style.display = '';
-    if (elems.eventRow) elems.eventRow.style.display = '';
-    if (elems.timeRow) elems.timeRow.style.display = '';
-    elems.eventName.textContent = data.event?.name ?? '';
-    elems.timeLabel.textContent = 'Opens:';
-    elems.timeValue.textContent = formatDate(data.event?.open_time);
-    if (data.event?.close_time) {
-      if (elems.closeRow) elems.closeRow.style.display = '';
-      elems.closeTime.textContent = formatDate(data.event.close_time);
-    }
-    if (data.event?.open_time) startCountdown(data.event.open_time);
-  } else if (type === 'closed') {
-    elems.status.textContent = 'Closed';
+    const open = hhmm(evt.open_time);
+    const close = typeof evt.close_time === 'number' ? hhmm(evt.close_time) : '';
+    const range = close ? `${open}-${close}` : `${open}`;
+    const tail = typeof evt.close_time === 'number' ? `, closes in ${formatCooldown(evt.close_time)}` : '';
+    return `${name}, ${range}${tail}`;
+  }
+  if (type === 'announced') {
+    const open = hhmm(evt.open_time);
+    const close = typeof evt.close_time === 'number' ? `-${hhmm(evt.close_time)}` : '';
+    const tail = typeof evt.open_time === 'number' ? `, opens in ${formatCooldown(evt.open_time)}` : '';
+    return `${name}, ${open}${close}${tail}`;
+  }
+  if (type === 'closed') {
     if (typeof data.predicted_open_time === 'number') {
-      elems.details.style.display = '';
-      if (elems.timeRow) elems.timeRow.style.display = '';
-      elems.timeLabel.textContent = 'Predicted open:';
-      elems.timeValue.textContent = formatDate(data.predicted_open_time);
-      startCountdown(data.predicted_open_time);
+      return `Closed, opens at ${hhmm(data.predicted_open_time)}, in ${formatCooldown(data.predicted_open_time)}`;
     }
-  } else {
-    elems.status.textContent = 'Unknown response';
-    showError('Unexpected response format from API.');
+    return 'Closed';
   }
+  return 'Unknown';
 }
 
 
 /**
- * Applies a snapshot from the background cache to the popup UI.
- * Updates loading/error states and re-renders when data is present.
- * @param {{data?:any,error?:string,loading?:boolean,lastUpdated?:number}} snapshot
+ * Local store of last snapshots per server
  */
-function applySnapshot(snapshot) {
-  const { data, error, loading } = snapshot || {};
-  setLoading(!!loading);
+const last = { 0: null, 1: null };
+
+function targetTs(snapshot) {
+  const data = snapshot?.data;
+  if (!data) return null;
+  if (data.type === 'open') return data.event?.close_time || null;
+  if (data.type === 'announced') return data.event?.open_time || null;
+  if (data.type === 'closed') return typeof data.predicted_open_time === 'number' ? data.predicted_open_time : null;
+  return null;
+}
+
+function renderAll() {
   clearError();
-  if (error) showError(error);
-  if (data) {
-    render(data);
-  }
+  const s0 = buildSummary(last[0]);
+  const s1 = buildSummary(last[1]);
+  if (elems.summary0) elems.summary0.textContent = s0;
+  if (elems.summary1) elems.summary1.textContent = s1;
+  const l0 = !!last[0]?.loading;
+  const l1 = !!last[1]?.loading;
+  setLoading(l0 || l1);
+  // timers
+  startTimer(0, targetTs(last[0]), () => {
+    if (elems.summary0) elems.summary0.textContent = buildSummary(last[0]);
+  });
+  startTimer(1, targetTs(last[1]), () => {
+    if (elems.summary1) elems.summary1.textContent = buildSummary(last[1]);
+  });
 }
 
 /**
- * Requests the latest cached snapshot from the background script without forcing a network fetch.
- * The background may still perform a fetch if its cache is considered stale.
- * @returns {Promise<{data?:any,error?:string,loading?:boolean,lastUpdated?:number}>}
+ * Request both servers' cached snapshots without forcing network fetches.
  */
-function requestSnapshot() {
+function requestAllSnapshots() {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: 'event-peeper:get' }, (resp) => {
+    chrome.runtime.sendMessage({ type: 'event-peeper:get-all' }, (resp) => {
       resolve(resp || {});
     });
   });
 }
 
 /**
- * Requests a forced refresh from the background script to fetch fresh data from the API.
- * Shows loading state while waiting for the response.
- * @returns {Promise<{data?:any,error?:string,loading?:boolean,lastUpdated?:number}>}
+ * Requests forced refresh for both servers.
  */
-function requestRefresh() {
+function requestRefreshAll() {
   setLoading(true);
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: 'event-peeper:refresh', forced: true }, (resp) => {
+    chrome.runtime.sendMessage({ type: 'event-peeper:refresh-all' }, (resp) => {
       resolve(resp || {});
     });
   });
 }
 
 /**
- * Bootstraps the popup: wires message listeners, refresh button, and initial snapshot load.
- * Does not perform any direct network requests; delegates to the background script.
+ * Bootstraps the popup for dual-server concise display.
  */
 function initialize() {
+  // Initial aggregate load
+  requestAllSnapshots().then((resp) => {
+    last[0] = resp?.[0] || { loading: true };
+    last[1] = resp?.[1] || { loading: true };
+    renderAll();
+  });
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'event-peeper:update') {
-      applySnapshot(msg.payload);
+      const p = msg.payload;
+      if (typeof p?.server === 'number' && (p.server === 0 || p.server === 1)) {
+        last[p.server] = p;
+        renderAll();
+      }
     }
   });
 
   elems.refreshBtn?.addEventListener('click', async () => {
-    const snap = await requestRefresh();
-    applySnapshot(snap);
+    const resp = await requestRefreshAll();
+    last[0] = resp?.[0] || last[0];
+    last[1] = resp?.[1] || last[1];
+    renderAll();
   });
-
-  requestSnapshot().then(applySnapshot);
 }
 
 initialize();
