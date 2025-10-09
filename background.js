@@ -1,18 +1,47 @@
 const API_URL = 'https://event-api.certainhuman.com/event';
+const SERVERS_URL = 'https://event-api.certainhuman.com/servers';
 
-// Valid server ids currently: 0 (US EAST OLD), 1 (US EAST NEW)
-let caches = {
-  0: { data: null, error: null, loading: false, lastUpdated: 0 },
-  1: { data: null, error: null, loading: false, lastUpdated: 0 },
-};
+let caches = {};
+
+let serversList = null; // {server_id, name, option_id, active}
+let serversPromise = null;
+
+async function fetchServersOnce() {
+  if (Array.isArray(serversList)) return serversList;
+  if (serversPromise) return serversPromise;
+  serversPromise = (async () => {
+    try {
+      const res = await fetch(SERVERS_URL, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      const list = Array.isArray(body?.servers) ? body.servers : [];
+      const filtered = list.filter(s => (typeof s?.active === 'number' ? s.active === 1 : true));
+      serversList = filtered;
+      return serversList;
+    } catch (e) {
+      serversList = [];
+      return serversList;
+    } finally {
+      serversPromise = null;
+    }
+  })();
+  return serversPromise;
+}
+
+function getServerIdsSync() {
+  return Array.isArray(serversList) ? serversList.map(s => s.server_id) : [];
+}
+
+function getServerName(serverId) {
+  if (!Array.isArray(serversList)) return String(serverId);
+  const s = serversList.find(x => x.server_id === serverId);
+  return s?.name ?? String(serverId);
+}
 
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_REQUESTS = 10;
-const requestTimes = {
-  0: [],
-  1: [],
-};
-let retryTimer = { 0: null, 1: null };
+const requestTimes = {};
+let retryTimer = {};
 /**
  * Removes request timestamps that are older than the rolling rate-limit window for a server.
  */
@@ -61,7 +90,7 @@ function scheduleLocalRetry(server) {
   }, delay);
 }
 
-let inFlight = { 0: null, 1: null };
+let inFlight = {};
 
 /**
  * Fetches event data from the API with caching, error handling, and rate limiting.
@@ -160,35 +189,52 @@ function notifyPopup(server) {
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type, forced, server } = message || {};
-  const serverId = Number.isInteger(server) ? server : 1;
+  const serverId = Number.isInteger(server) ? server : null;
+
+  if (type === 'event-peeper:get-servers') {
+    fetchServersOnce().then((list) => {
+      sendResponse({ servers: list });
+    });
+    return true;
+  }
+
   if (type === 'event-peeper:get') {
-    const snapshot = { ...(caches[serverId] || {}), server: serverId };
+    const id = serverId ?? getServerIdsSync()[0];
+    const snapshot = { ...(caches[id] || {}), server: id };
     sendResponse(snapshot);
-    fetchFromAPI({ forced: false, server: serverId });
+    if (typeof id === 'number') fetchFromAPI({ forced: false, server: id });
     return true;
   }
+
   if (type === 'event-peeper:get-all') {
-    const resp = {
-      0: { ...(caches[0] || {}), server: 0 },
-      1: { ...(caches[1] || {}), server: 1 },
-    };
-    sendResponse(resp);
-    fetchFromAPI({ forced: false, server: 0 });
-    fetchFromAPI({ forced: false, server: 1 });
+    fetchServersOnce().then((list) => {
+      const ids = list.map(s => s.server_id);
+      const resp = {};
+      ids.forEach(id => {
+        resp[id] = { ...(caches[id] || {}), server: id, name: getServerName(id) };
+      });
+      sendResponse(resp);
+      ids.forEach(id => fetchFromAPI({ forced: false, server: id }));
+    });
     return true;
   }
+
   if (type === 'event-peeper:refresh') {
-    fetchFromAPI({ forced: !!forced, server: serverId }).then((updated) => {
+    const id = serverId ?? getServerIdsSync()[0];
+    fetchFromAPI({ forced: !!forced, server: id }).then((updated) => {
       sendResponse(updated);
     });
     return true;
   }
+
   if (type === 'event-peeper:refresh-all') {
-    Promise.all([
-      fetchFromAPI({ forced: true, server: 0 }),
-      fetchFromAPI({ forced: true, server: 1 }),
-    ]).then(([s0, s1]) => {
-      sendResponse({ 0: s0, 1: s1 });
+    fetchServersOnce().then((list) => {
+      const ids = list.map(s => s.server_id);
+      Promise.all(ids.map(id => fetchFromAPI({ forced: true, server: id }))).then((results) => {
+        const resp = {};
+        ids.forEach((id, i) => { resp[id] = results[i]; });
+        sendResponse(resp);
+      });
     });
     return true;
   }
@@ -207,8 +253,9 @@ chrome.runtime.onInstalled.addListener(() => {
  */
 chrome.alarms?.onAlarm.addListener((alarm) => {
   if (alarm.name === 'event-peeper:tick') {
-    // refresh both known servers to keep caches warm
-    fetchFromAPI({ forced: false, server: 0 });
-    fetchFromAPI({ forced: false, server: 1 });
+    fetchServersOnce().then((list) => {
+      const ids = list.map(s => s.server_id);
+      ids.forEach(id => fetchFromAPI({ forced: false, server: id }));
+    });
   }
 });
