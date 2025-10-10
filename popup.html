@@ -36,7 +36,7 @@
       filter: saturate(0.9);
       pointer-events: none;
     }
-    .card:hover { transform: translateY(1px); }
+    .card:hover { transform: scale(1.01); }
     .card > * { position: relative; z-index: 1; }
 
     .card-title { font-weight: 700; margin: 0 0 4px; font-size: 13px; opacity: 0.95; }
@@ -76,6 +76,8 @@
     /* Header polish */
     .header-actions { display: flex; align-items: center; gap: 8px; }
     /* Modern refresh button */
+    /* Ensure no unexpected fills inside the SVGs (default fill is black) */
+    #refreshBtn svg { fill: none; }
     #refreshBtn {
       --btn-bg: color-mix(in oklab, CanvasText 8%, Canvas);
       --btn-fg: color-mix(in oklab, CanvasText 92%, transparent);
@@ -91,7 +93,7 @@
       cursor: pointer;
       transition: transform 120ms ease, box-shadow 160ms ease, background 160ms ease, color 160ms ease;
     }
-    #refreshBtn:hover { transform: translateY(1px); box-shadow: 0 2px 6px rgba(0,0,0,0.16), inset 0 0 0 1px color-mix(in oklab, CanvasText 18%, transparent); }
+    #refreshBtn:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.16), inset 0 0 0 1px color-mix(in oklab, CanvasText 18%, transparent); }
     #refreshBtn:active { transform: translateY(2px) scale(0.98); }
     #refreshBtn .icon { width: 16px; height: 16px; display: block; }
     /* Spin animation when content is loading */
@@ -116,13 +118,13 @@
     <h1>Event Peeper</h1>
     <div class="header-actions">
       <button id="refreshBtn" title="Refresh now" aria-label="Refresh">
-        <svg class="icon" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="23 4 23 10 17 10"/>
           <polyline points="1 20 1 14 7 14"/>
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
           <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/>
         </svg>
-        <svg class="check" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="check" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </button>

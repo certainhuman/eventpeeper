@@ -12,6 +12,7 @@ let nameEls = {};
 let countdownEls = {};
 let ringEls = {};
 let ringCirc = {};
+let statusEls = {};
 
 // Event status timings and ring logic
 // - Closed: 27 minutes until the next announcement (cooldown).
@@ -73,12 +74,10 @@ function setLoading(isLoading) {
     const remaining = Math.max(150, durMs - (elapsedMs % durMs));
     header.classList.remove('loading');
     header.classList.add('loading-done');
-    header.classList.add('loaded'); // show the check immediately
-    // Remove the finish-the-lap class after remaining time
+    header.classList.add('loaded');
     clearTimeout(setLoading._finishTimer);
     setLoading._finishTimer = setTimeout(() => {
       header.classList.remove('loading-done');
-      // Keep the check visible briefly, then hide
       clearTimeout(setLoading._checkTimer);
       setLoading._checkTimer = setTimeout(() => {
         header.classList.remove('loaded');
@@ -128,8 +127,47 @@ function clearTimer(server) {
 function startTimer(server, targetTsSec, renderFn) {
   clearTimer(server);
   if (!targetTsSec) return;
-  const tick = () => renderFn();
+  const tick = async () => {
+    try {
+      renderFn();
+      maybeAutoRefreshOnZero(server);
+    } catch (e) {
+      // ignore timer errors to keep UI alive (not that we expect them)
+    }
+  };
   countdownTimers[server] = setInterval(tick, 1000);
+}
+
+/**
+ * Checks server countdown and triggers a one-shot auto refresh when it crosses zero.
+ */
+async function maybeAutoRefreshOnZero(server) {
+  const snap = last[server];
+  const tgt = targetTs(server, snap);
+  if (typeof tgt !== 'number') return;
+  const now = Math.floor(Date.now() / 1000);
+  const remaining = tgt - now;
+  // Trigger a refresh when we cross zero, but only once per crossing
+  if (remaining <= 0 && !maybeAutoRefreshOnZero._refreshed?.[server]) {
+    maybeAutoRefreshOnZero._refreshed = maybeAutoRefreshOnZero._refreshed || {};
+    maybeAutoRefreshOnZero._refreshed[server] = true;
+    const resp = await requestRefreshAll();
+    if (resp && typeof resp === 'object') {
+      Object.keys(resp).forEach((k) => {
+        const id = Number(k);
+        if (!Number.isNaN(id)) last[id] = resp[id] || last[id];
+      });
+    }
+    renderAll();
+    // After refresh, allow future auto-refreshes when a new positive countdown appears
+    setTimeout(() => {
+      maybeAutoRefreshOnZero._refreshed[server] = false;
+    }, 2000);
+  } else if (remaining > 1) {
+    // If countdown is back in positive territory, clear the one-shot flag
+    maybeAutoRefreshOnZero._refreshed = maybeAutoRefreshOnZero._refreshed || {};
+    maybeAutoRefreshOnZero._refreshed[server] = false;
+  }
 }
 
 
@@ -245,12 +283,25 @@ function pickBackground(snapshot) {
   return null;
 }
 
+function isLightMode() {
+  try { return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches; } catch { return false; }
+}
+
 function applyCardBackground(card, snapshot) {
   const bg = pickBackground(snapshot);
   if (bg) {
     card.style.setProperty('--bg-image', `url("${bg}")`);
     const state = snapshotState(snapshot);
-    card.style.setProperty('--bg-opacity', state === 'closed' ? '0.28' : '0.20');
+    //base
+    let closedOpacity = 0.30;
+    let otherOpacity = 0.40;
+
+    //light mode offset
+    if (isLightMode()) {
+      closedOpacity += 0.2;
+      otherOpacity += 0.2;
+    }
+    card.style.setProperty('--bg-opacity', state === 'closed' ? String(closedOpacity) : String(otherOpacity));
   } else {
     card.style.removeProperty('--bg-image');
     card.style.removeProperty('--bg-opacity');
@@ -269,19 +320,23 @@ function renderAll() {
   serverIds.forEach((id) => {
     const snapshot = last[id];
 
-    // Update event name
     let evtName = snapshot?.data?.event?.name;
-    const t = snapshot?.data?.type;
+    const st = snapshotState(snapshot);
     if (!evtName) {
-      if (t === 'closed') evtName = 'Closed';
-      else if (t === 'announced') evtName = 'Announced';
-      else if (t === 'open') evtName = 'Open';
-      else evtName = '—';
+      evtName = (st === 'closed') ? 'Closed' : '—'; // show large text when closed
     }
     if (nameEls[id]) nameEls[id].textContent = evtName;
+    let statusText = '—';
+    if (st === 'open') statusText = 'Open';
+    else if (st === 'closed') statusText = 'Closed';
+    else if (st === 'announced') statusText = 'Announced';
+    else if (st === 'loading') statusText = 'Loading…';
+    else if (st === 'error') statusText = 'Error';
+    if (statusEls[id]) {
+      statusEls[id].textContent = statusText;
+      statusEls[id].style.display = (st === 'closed') ? 'none' : '';
+    }
 
-    // Update countdown text and ring
-    // record last known close time for 27-minute cooldown reference
     if (snapshot?.data?.type === 'open' && Number.isFinite(Number(snapshot?.data?.event?.close_time))) {
       lastCloseTime[id] = Number(snapshot.data.event.close_time);
     }
@@ -293,7 +348,6 @@ function renderAll() {
     const circ = ringCirc[id];
     if (circle && typeof circ === 'number') {
       const p = Number.isFinite(progress) ? clamp01(progress) : 0;
-      // Countdown ring: start full (offset 0) and shrink to empty (offset circ)
       const offset = circ * p;
       circle.setAttribute('stroke-dashoffset', String(offset));
     }
@@ -302,17 +356,27 @@ function renderAll() {
     if (card) applyCardState(card, snapshot);
     if (snapshot?.loading) anyLoading = true;
 
-    // Keep the live countdown updating each second
     startTimer(id, targetTs(id, snapshot), () => {
       const snap = last[id];
       const card2 = cards[id];
       if (card2) applyCardState(card2, snap);
-      // record last known close time continuously while open
       if (snap?.data?.type === 'open' && Number.isFinite(Number(snap?.data?.event?.close_time))) {
         lastCloseTime[id] = Number(snap.data.event.close_time);
       }
       const tgt2 = targetTs(id, snap);
       if (countdownEls[id]) countdownEls[id].textContent = typeof tgt2 === 'number' ? formatCooldown(tgt2) : '—';
+      // keep status text in sync during ticks too
+      const st2 = snapshotState(snap);
+      let statusText2 = '—';
+      if (st2 === 'open') statusText2 = 'Open';
+      else if (st2 === 'closed') statusText2 = 'Closed';
+      else if (st2 === 'announced') statusText2 = 'Announced';
+      else if (st2 === 'loading') statusText2 = 'Loading…';
+      else if (st2 === 'error') statusText2 = 'Error';
+      if (statusEls[id]) {
+        statusEls[id].textContent = statusText2;
+        statusEls[id].style.display = (st2 === 'closed') ? 'none' : '';
+      }
       const { progress: p2 } = computeProgress(id, snap);
       const c = ringEls[id];
       const circ2 = ringCirc[id];
@@ -382,6 +446,10 @@ function ensureRow(server) {
 
   headerLeft.appendChild(title);
   headerLeft.appendChild(eventName);
+  const status = document.createElement('div');
+  status.className = 'card-meta muted';
+  status.textContent = '—';
+  headerLeft.appendChild(status);
 
   const countdownWrap = document.createElement('div');
   countdownWrap.className = 'countdown-wrap';
@@ -424,6 +492,7 @@ function ensureRow(server) {
   countdownEls[id] = countdownText;
   ringEls[id] = progress;
   ringCirc[id] = circumference;
+  statusEls[id] = status;
   return card;
 }
 
