@@ -241,16 +241,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Make sure the popup is updated at least once per minute, even if the user doesn't open the popup. Sometimes this doesn't happen. Why? Good question.
-/**
- * Installed/updated lifecycle handler: sets up a periodic alarm to refresh data in the background.
- */
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.alarms) chrome.alarms.create('event-peeper:tick', { periodInMinutes: 1 });
 });
-/**
- * Alarm handler: triggers periodic non-forced refreshes when the scheduled alarm fires.
- * Ensures data stays reasonably fresh even without the popup being opened.
- */
+
 chrome.alarms?.onAlarm.addListener((alarm) => {
   if (alarm.name === 'event-peeper:tick') {
     fetchServersOnce().then((list) => {
