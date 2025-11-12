@@ -11,7 +11,7 @@ async function fetchServersOnce() {
     if (serversPromise) return serversPromise;
     serversPromise = (async () => {
         try {
-            const res = await fetch(SERVERS_URL, { cache: 'no-cache' });
+            const res = await fetch(SERVERS_URL, {cache: 'no-cache'});
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = await res.json();
             const list = Array.isArray(body?.servers) ? body.servers : [];
@@ -90,7 +90,7 @@ function scheduleLocalRetry(server) {
     const delay = Math.max(200, timeUntilNextSlotMs());
     retryTimer[server] = setTimeout(() => {
         retryTimer[server] = null;
-        fetchFromAPI({ forced: false, server });
+        fetchFromAPI({forced: false, server});
     }, delay);
 }
 
@@ -103,22 +103,26 @@ let inFlight = {};
  * - Handles HTTP 429 and server-side rate-limit JSON, optionally scheduling retries.
  * @returns {Promise<{data:any,error:string|null,loading:boolean,lastUpdated:number}>|{data:any,error:string|null,loading:boolean,lastUpdated:number}}
  */
-async function fetchFromAPI({ forced = false, server = 1 } = {}) {
-    let cache = caches[server] || (caches[server] = { data: null, error: null, loading: false, lastUpdated: 0 });
+async function fetchFromAPI({forced = false, server = 1} = {}) {
+    let cache = caches[server] || (caches[server] = {data: null, error: null, loading: false, lastUpdated: 0});
     if (cache.loading && inFlight && inFlight[server]) return inFlight[server];
 
     const isStale = Date.now() - cache.lastUpdated > 30_000;
-    if (!forced && !isStale) return { ...cache };
+    if (!forced && !isStale) return {...cache};
 
     if (!forced && !canMakeAutoRequest()) {
         const waitMs = timeUntilNextSlotMs();
-        caches[server] = { ...cache, loading: false, error: `Rate limit reached (max ${RATE_MAX_REQUESTS}/${Math.round(RATE_WINDOW_MS/1000)}s). Retrying in ${Math.ceil(waitMs/1000)}s…` };
+        caches[server] = {
+            ...cache,
+            loading: false,
+            error: `Rate limit reached (max ${RATE_MAX_REQUESTS}/${Math.round(RATE_WINDOW_MS / 1000)}s). Retrying in ${Math.ceil(waitMs / 1000)}s…`
+        };
         notifyPopup(server);
         scheduleLocalRetry(server);
-        return { ...caches[server] };
+        return {...caches[server]};
     }
 
-    caches[server] = { ...cache, loading: true, error: null };
+    caches[server] = {...cache, loading: true, error: null};
     notifyPopup(server);
 
     recordRequest();
@@ -152,10 +156,14 @@ async function fetchFromAPI({ forced = false, server = 1 } = {}) {
                     if (body && (body.error || body.message)) {
                         msg = 'API rate limit exceeded (server-side). Retrying soon…';
                     }
-                } catch {}
-                caches[server] = { ...cache, loading: false, error: msg };
+                } catch {
+                }
+                caches[server] = {...cache, loading: false, error: msg};
                 notifyPopup(server);
-                if (!retryTimer[server]) retryTimer[server] = setTimeout(() => { retryTimer[server] = null; fetchFromAPI({ forced: false, server }); }, retryDelayMs);
+                if (!retryTimer[server]) retryTimer[server] = setTimeout(() => {
+                    retryTimer[server] = null;
+                    fetchFromAPI({forced: false, server});
+                }, retryDelayMs);
                 return caches[server];
             }
 
@@ -165,10 +173,10 @@ async function fetchFromAPI({ forced = false, server = 1 } = {}) {
 
             const data = await res.json();
 
-            caches[server] = { data, error: null, loading: false, lastUpdated: Date.now() };
+            caches[server] = {data, error: null, loading: false, lastUpdated: Date.now()};
             return caches[server];
         } catch (e) {
-            caches[server] = { ...cache, loading: false, error: `Failed to fetch events. ${e?.message ?? e}` };
+            caches[server] = {...cache, loading: false, error: `Failed to fetch events. ${e?.message ?? e}`};
             return caches[server];
         } finally {
             notifyPopup(server);
@@ -185,8 +193,8 @@ async function fetchFromAPI({ forced = false, server = 1 } = {}) {
  */
 function notifyPopup(server) {
     try {
-        const payload = { ...(caches[server] || {}), server };
-        chrome.runtime.sendMessage({ type: 'event-peeper:update', payload });
+        const payload = {...(caches[server] || {}), server};
+        chrome.runtime.sendMessage({type: 'event-peeper:update', payload});
     } catch {
         // Well, we tried.
     }
@@ -198,21 +206,21 @@ function notifyPopup(server) {
  * - "event-peeper:refresh": performs a forced fetch and responds with the updated cache when done.
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    const { type, forced, server } = message || {};
+    const {type, forced, server} = message || {};
     const serverId = Number.isInteger(server) ? server : null;
 
     if (type === 'event-peeper:get-servers') {
         fetchServersOnce().then((list) => {
-            sendResponse({ servers: list });
+            sendResponse({servers: list});
         });
         return true;
     }
 
     if (type === 'event-peeper:get') {
         const id = serverId ?? getServerIdsSync()[0];
-        const snapshot = { ...(caches[id] || {}), server: id };
+        const snapshot = {...(caches[id] || {}), server: id};
         sendResponse(snapshot);
-        if (typeof id === 'number') fetchFromAPI({ forced: false, server: id });
+        if (typeof id === 'number') fetchFromAPI({forced: false, server: id});
         return true;
     }
 
@@ -221,17 +229,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const ids = list.map(s => s.server_id);
             const resp = {};
             ids.forEach(id => {
-                resp[id] = { ...(caches[id] || {}), server: id, name: getServerName(id) };
+                resp[id] = {...(caches[id] || {}), server: id, name: getServerName(id)};
             });
             sendResponse(resp);
-            ids.forEach(id => fetchFromAPI({ forced: false, server: id }));
+            ids.forEach(id => fetchFromAPI({forced: false, server: id}));
         });
         return true;
     }
 
     if (type === 'event-peeper:refresh') {
         const id = serverId ?? getServerIdsSync()[0];
-        fetchFromAPI({ forced: !!forced, server: id }).then((updated) => {
+        fetchFromAPI({forced: !!forced, server: id}).then((updated) => {
             sendResponse(updated);
         });
         return true;
@@ -240,9 +248,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (type === 'event-peeper:refresh-all') {
         fetchServersOnce().then((list) => {
             const ids = list.map(s => s.server_id);
-            Promise.all(ids.map(id => fetchFromAPI({ forced: true, server: id }))).then((results) => {
+            Promise.all(ids.map(id => fetchFromAPI({forced: true, server: id}))).then((results) => {
                 const resp = {};
-                ids.forEach((id, i) => { resp[id] = results[i]; });
+                ids.forEach((id, i) => {
+                    resp[id] = results[i];
+                });
                 sendResponse(resp);
             });
         });
@@ -252,14 +262,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Make sure the popup is updated at least once per minute, even if the user doesn't open the popup. Sometimes this doesn't happen. Why? Good question.
 chrome.runtime.onInstalled.addListener(() => {
-    if (chrome.alarms) chrome.alarms.create('event-peeper:tick', { periodInMinutes: 1 });
+    if (chrome.alarms) chrome.alarms.create('event-peeper:tick', {periodInMinutes: 1});
 });
 
 chrome.alarms?.onAlarm.addListener((alarm) => {
     if (alarm.name === 'event-peeper:tick') {
         fetchServersOnce().then((list) => {
             const ids = list.map(s => s.server_id);
-            ids.forEach(id => fetchFromAPI({ forced: false, server: id }));
+            ids.forEach(id => fetchFromAPI({forced: false, server: id}));
         });
     }
 });
