@@ -129,7 +129,21 @@
             pointer-events: none;
         }
 
+        .card {
+            transition: background 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease,
+            transform 180ms ease;
+        }
+
         .card:hover {
+            background: color-mix(in oklab, var(--accent) 6%, Canvas);
+            border-color: var(--accent);
+            box-shadow: 0 3px 10px color-mix(in oklab, var(--accent) 35%, transparent);
+        }
+
+        .card:hover::before {
+            filter: saturate(1.005) brightness(1.005);
         }
 
         .card > * {
