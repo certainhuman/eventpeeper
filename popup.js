@@ -416,8 +416,8 @@ function applyCardBackground(card, snapshot) {
 
         //light mode offset
         if (isLightMode()) {
-            closedOpacity += 0.2;
-            otherOpacity += 0.2;
+            closedOpacity += 0.4;
+            otherOpacity += 0.4;
         }
         card.style.setProperty('--bg-opacity', state === 'closed' ? String(closedOpacity) : String(otherOpacity));
     } else {
