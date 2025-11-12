@@ -1,10 +1,76 @@
-// noinspection JSUnresolvedReference,GrazieInspection
+function updateHeaderInfo() {
+    if (elems.rateLimitText && elems.rateLimitFill && elems.rateLimitBar) {
+        const used = rateLimitInfo.used || 0;
+        const max = rateLimitInfo.max || 10;
+        const available = rateLimitInfo.available || 0;
+        const percentage = (used / max) * 100;
+        elems.rateLimitText.textContent = `${used}/${max}`;
+        elems.rateLimitFill.style.width = `${percentage}%`;
+
+        if (percentage < 50) {
+            elems.rateLimitBar.setAttribute('data-level', 'low');
+        } else if (percentage < 80) {
+            elems.rateLimitBar.setAttribute('data-level', 'medium');
+        } else {
+            elems.rateLimitBar.setAttribute('data-level', 'high');
+        }
+
+        if (elems.refreshBtn) {
+            if (available <= 0) {
+                elems.refreshBtn.disabled = true;
+                elems.refreshBtn.title = 'Rate limit exceeded. Wait a moment...';
+            } else {
+                elems.refreshBtn.disabled = false;
+                elems.refreshBtn.title = 'Refresh now';
+            }
+        }
+    }
+
+    if (elems.lastUpdate) {
+        if (lastGlobalUpdate > 0) {
+            const secondsAgo = Math.floor((Date.now() - lastGlobalUpdate) / 1000);
+            if (secondsAgo < 60) {
+                elems.lastUpdate.textContent = `${secondsAgo}s ago`;
+            } else {
+                const minutesAgo = Math.floor(secondsAgo / 60);
+                elems.lastUpdate.textContent = `${minutesAgo}m ago`;
+            }
+        } else {
+            elems.lastUpdate.textContent = '—';
+        }
+    }
+
+    if (elems.activeEvents) {
+        let openCount = 0;
+        let announcedCount = 0;
+        serverIds.forEach(id => {
+            const state = snapshotState(last[id]);
+            if (state === 'open') openCount++;
+            else if (state === 'announced') announcedCount++;
+        });
+
+        if (openCount > 0 && announcedCount > 0) {
+            elems.activeEvents.textContent = `${openCount} open, ${announcedCount} announced`;
+        } else if (openCount > 0) {
+            elems.activeEvents.textContent = `${openCount} open`;
+        } else if (announcedCount > 0) {
+            elems.activeEvents.textContent = `${announcedCount} announced`;
+        } else {
+            elems.activeEvents.textContent = 'No events';
+        }
+    }
+}// noinspection JSUnresolvedReference,GrazieInspection
 
 const elems = {
     content: document.getElementById('content'),
     error: document.getElementById('error'),
     refreshBtn: document.getElementById('refreshBtn'),
     rows: document.getElementById('rows'),
+    rateLimitText: document.getElementById('rateLimitText'),
+    rateLimitFill: document.getElementById('rateLimitFill'),
+    rateLimitBar: document.getElementById('rateLimitBar'),
+    lastUpdate: document.getElementById('lastUpdate'),
+    activeEvents: document.getElementById('activeEvents'),
 };
 
 let countdownTimers = {};
@@ -219,6 +285,8 @@ async function maybeAutoRefreshOnZero(server) {
  * Local store of last snapshots per server
  */
 let last = {};
+let rateLimitInfo = {used: 0, max: 10};
+let lastGlobalUpdate = 0;
 
 function effectiveOpenTime(server, snapshot) {
     const openTs = Number(snapshot?.data?.event?.open_time);
@@ -367,13 +435,16 @@ function applyCardState(card, snapshot) {
 function renderAll() {
     clearError();
     let anyLoading = false;
+
+    updateHeaderInfo();
+
     serverIds.forEach((id) => {
         const snapshot = last[id];
 
         let evtName = snapshot?.data?.event?.name;
         const st = snapshotState(snapshot);
         if (!evtName) {
-            evtName = (st === 'closed') ? 'Closed' : '—'; // show large text when closed
+            evtName = (st === 'closed') ? 'Closed' : '—';
         }
         if (nameEls[id]) nameEls[id].textContent = evtName;
         let statusText = '—';
@@ -459,6 +530,17 @@ function requestRefreshAll() {
     return new Promise((resolve) => {
         chrome.runtime.sendMessage({type: 'event-peeper:refresh-all'}, (resp) => {
             resolve(resp || {});
+        });
+    });
+}
+
+/**
+ * Requests current rate limit status from background.
+ */
+function requestRateLimitStatus() {
+    return new Promise((resolve) => {
+        chrome.runtime.sendMessage({type: 'event-peeper:get-rate-limit'}, (resp) => {
+            resolve(resp || {used: 0, max: 10});
         });
     });
 }
@@ -566,10 +648,24 @@ async function initialize() {
                     ensureRow({server_id: id, name: String(id)});
                 }
                 last[id] = resp[id] || {loading: true};
+                // Track the most recent update time
+                if (resp[id]?.lastUpdated && resp[id].lastUpdated > lastGlobalUpdate) {
+                    lastGlobalUpdate = resp[id].lastUpdated;
+                }
             }
         });
     }
+
+    rateLimitInfo = await requestRateLimitStatus();
     renderAll();
+
+    setInterval(async () => {
+        const newRateLimit = await requestRateLimitStatus();
+        if (newRateLimit.used !== rateLimitInfo.used) {
+            rateLimitInfo = newRateLimit;
+        }
+        updateHeaderInfo();
+    }, 200);
 
     chrome.runtime.onMessage.addListener((msg) => {
         if (msg && msg.type === 'event-peeper:update') {
@@ -580,17 +676,32 @@ async function initialize() {
                     ensureRow({server_id: p.server, name: String(p.server)});
                 }
                 last[p.server] = p;
+                // Update global last update time
+                if (p.lastUpdated && p.lastUpdated > lastGlobalUpdate) {
+                    lastGlobalUpdate = p.lastUpdated;
+                }
                 renderAll();
             }
         }
     });
 
     elems.refreshBtn?.addEventListener('click', async () => {
+        const currentLimit = await requestRateLimitStatus();
+        if (currentLimit.available <= 0) {
+            return;
+        }
+
         const resp2 = await requestRefreshAll();
         if (resp2 && typeof resp2 === 'object') {
             Object.keys(resp2).forEach((k) => {
                 const id = Number(k);
-                if (!Number.isNaN(id)) last[id] = resp2[id] || last[id];
+                if (!Number.isNaN(id)) {
+                    last[id] = resp2[id] || last[id];
+                    // Update global last update time
+                    if (resp2[id]?.lastUpdated && resp2[id].lastUpdated > lastGlobalUpdate) {
+                        lastGlobalUpdate = resp2[id].lastUpdated;
+                    }
+                }
             });
         }
         renderAll();

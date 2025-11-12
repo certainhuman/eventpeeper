@@ -38,9 +38,10 @@ function getServerName(serverId) {
     return s?.name ?? String(serverId);
 }
 
+// Global rate limiting (across all servers)
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_REQUESTS = 10;
-const requestTimes = [];
+const globalRequestTimes = [];
 let retryTimer = {};
 
 /**
@@ -48,30 +49,30 @@ let retryTimer = {};
  */
 function pruneOld() {
     const cutoff = Date.now() - RATE_WINDOW_MS;
-    while (requestTimes.length && requestTimes[0] < cutoff) {
-        requestTimes.shift();
+    while (globalRequestTimes.length && globalRequestTimes[0] < cutoff) {
+        globalRequestTimes.shift();
     }
 }
 
 /**
- * Calculates the milliseconds until the next request slot becomes available.
+ * Calculates the milliseconds until the next request slot becomes available globally.
  * @returns {number} Milliseconds to wait before another auto request is allowed (0 if allowed now).
  */
 function timeUntilNextSlotMs() {
     pruneOld();
-    if (requestTimes.length < RATE_MAX_REQUESTS) return 0;
-    const oldest = requestTimes[0];
+    if (globalRequestTimes.length < RATE_MAX_REQUESTS) return 0;
+    const oldest = globalRequestTimes[0];
     const wait = RATE_WINDOW_MS - (Date.now() - oldest);
     return Math.max(0, wait);
 }
 
 /**
- * Indicates whether an automatic (non-forced) request is permitted.
+ * Indicates whether an automatic (non-forced) request is permitted globally.
  * @returns {boolean} True if another auto request can be made now; otherwise false.
  */
 function canMakeAutoRequest() {
     pruneOld();
-    return requestTimes.length < RATE_MAX_REQUESTS;
+    return globalRequestTimes.length < RATE_MAX_REQUESTS;
 }
 
 /**
@@ -79,7 +80,20 @@ function canMakeAutoRequest() {
  */
 function recordRequest() {
     pruneOld();
-    requestTimes.push(Date.now());
+    globalRequestTimes.push(Date.now());
+}
+
+/**
+ * Returns current rate limit status.
+ */
+function getRateLimitStatus() {
+    pruneOld();
+    return {
+        used: globalRequestTimes.length,
+        max: RATE_MAX_REQUESTS,
+        available: RATE_MAX_REQUESTS - globalRequestTimes.length,
+        nextSlotMs: timeUntilNextSlotMs()
+    };
 }
 
 /**
@@ -98,9 +112,10 @@ let inFlight = {};
 
 /**
  * Fetches event data from the API with caching, error handling, and rate limiting.
- * - Respects auto rate limit unless forced.
+ * - Respects global auto rate limit unless forced.
  * - Updates cache and notifies any open popups on state changes.
  * - Handles HTTP 429 and server-side rate-limit JSON, optionally scheduling retries.
+ * - On error, preserves existing data instead of overwriting with error state.
  * @returns {Promise<{data:any,error:string|null,loading:boolean,lastUpdated:number}>|{data:any,error:string|null,loading:boolean,lastUpdated:number}}
  */
 async function fetchFromAPI({forced = false, server = 1} = {}) {
@@ -112,14 +127,10 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
 
     if (!forced && !canMakeAutoRequest()) {
         const waitMs = timeUntilNextSlotMs();
-        caches[server] = {
-            ...cache,
-            loading: false,
-            error: `Rate limit reached (max ${RATE_MAX_REQUESTS}/${Math.round(RATE_WINDOW_MS / 1000)}s). Retrying in ${Math.ceil(waitMs / 1000)}s…`
-        };
+        // Don't overwrite with error state, just return current cache
         notifyPopup(server);
         scheduleLocalRetry(server);
-        return {...caches[server]};
+        return {...cache};
     }
 
     caches[server] = {...cache, loading: true, error: null};
@@ -150,15 +161,8 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
                         if (!Number.isNaN(ms)) retryDelayMs = Math.max(1000, ms);
                     }
                 }
-                let msg = 'API rate limit exceeded (HTTP 429). Retrying soon…';
-                try {
-                    const body = await res.json();
-                    if (body && (body.error || body.message)) {
-                        msg = 'API rate limit exceeded (server-side). Retrying soon…';
-                    }
-                } catch {
-                }
-                caches[server] = {...cache, loading: false, error: msg};
+                // Preserve existing data, just clear loading state
+                caches[server] = {...cache, loading: false};
                 notifyPopup(server);
                 if (!retryTimer[server]) retryTimer[server] = setTimeout(() => {
                     retryTimer[server] = null;
@@ -176,7 +180,8 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
             caches[server] = {data, error: null, loading: false, lastUpdated: Date.now()};
             return caches[server];
         } catch (e) {
-            caches[server] = {...cache, loading: false, error: `Failed to fetch events. ${e?.message ?? e}`};
+            // On error, preserve existing data and just clear loading state
+            caches[server] = {...cache, loading: false};
             return caches[server];
         } finally {
             notifyPopup(server);
@@ -213,6 +218,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         fetchServersOnce().then((list) => {
             sendResponse({servers: list});
         });
+        return true;
+    }
+
+    if (type === 'event-peeper:get-rate-limit') {
+        sendResponse(getRateLimitStatus());
         return true;
     }
 

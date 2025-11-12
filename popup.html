@@ -29,6 +29,7 @@
             top: 0;
             z-index: 10;
             backdrop-filter: saturate(1.2) blur(6px);
+            gap: 12px;
         }
 
         h1 {
@@ -36,6 +37,66 @@
             margin: 0;
             letter-spacing: 0.8px;
             font-weight: 800;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 10px;
+            opacity: 0.7;
+            flex: 1;
+        }
+
+        .header-info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .rate-limit-bar {
+            width: 50px;
+            height: 4px;
+            background: color-mix(in oklab, CanvasText 15%, transparent);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .rate-limit-fill {
+            height: 100%;
+            background: currentColor;
+            transition: width 0.2s ease;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .rate-limit-text {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rate-limit-bar[data-level="low"] .rate-limit-fill {
+            color: #2ecc71;
+        }
+
+        .rate-limit-bar[data-level="medium"] .rate-limit-fill {
+            color: #f1c40f;
+        }
+
+        .rate-limit-bar[data-level="high"] .rate-limit-fill {
+            color: #e74c3c;
+        }
+
+        .header-separator {
+            width: 1px;
+            height: 14px;
+            background: color-mix(in oklab, CanvasText 20%, transparent);
+        }
+
+        .last-update {
+            font-variant-numeric: tabular-nums;
         }
 
         /* Cards layout */
@@ -266,6 +327,20 @@
             transform: translateY(2px) scale(0.98);
         }
 
+        #refreshBtn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        #refreshBtn:disabled:hover {
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 0 0 1px color-mix(in oklab, CanvasText 12%, transparent);
+            transform: none;
+        }
+
+        #refreshBtn:disabled:active {
+            transform: none;
+        }
+
         #refreshBtn .icon {
             width: 16px;
             height: 16px;
@@ -351,6 +426,22 @@
 <body>
 <header>
     <h1>Event Peeper</h1>
+    <div class="header-info">
+        <div class="header-info-item">
+            <span class="rate-limit-text" id="rateLimitText">—</span>
+            <div class="rate-limit-bar" id="rateLimitBar" data-level="low">
+                <div class="rate-limit-fill" id="rateLimitFill" style="width: 0%"></div>
+            </div>
+        </div>
+        <div class="header-separator"></div>
+        <div class="header-info-item">
+            <span class="last-update" id="lastUpdate">—</span>
+        </div>
+        <div class="header-separator"></div>
+        <div class="header-info-item">
+            <span id="activeEvents">—</span>
+        </div>
+    </div>
     <div class="header-actions">
         <button id="refreshBtn" title="Refresh now" aria-label="Refresh">
             <svg class="icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
