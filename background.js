@@ -15,8 +15,7 @@ async function fetchServersOnce() {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = await res.json();
             const list = Array.isArray(body?.servers) ? body.servers : [];
-            const filtered = list.filter(s => (typeof s?.active === 'number' ? s.active === 1 : true));
-            serversList = filtered;
+            serversList = list.filter(s => (typeof s?.active === 'number' ? s.active === 1 : true));
             return serversList;
         } catch (e) {
             serversList = [];
@@ -112,10 +111,6 @@ let inFlight = {};
 
 /**
  * Fetches event data from the API with caching, error handling, and rate limiting.
- * - Respects global auto rate limit unless forced.
- * - Updates cache and notifies any open popups on state changes.
- * - Handles HTTP 429 and server-side rate-limit JSON, optionally scheduling retries.
- * - On error, preserves existing data instead of overwriting with error state.
  * @returns {Promise<{data:any,error:string|null,loading:boolean,lastUpdated:number}>|{data:any,error:string|null,loading:boolean,lastUpdated:number}}
  */
 async function fetchFromAPI({forced = false, server = 1} = {}) {
@@ -126,8 +121,6 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
     if (!forced && !isStale) return {...cache};
 
     if (!forced && !canMakeAutoRequest()) {
-        const waitMs = timeUntilNextSlotMs();
-        // Don't overwrite with error state, just return current cache
         notifyPopup(server);
         scheduleLocalRetry(server);
         return {...cache};
@@ -268,11 +261,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return true;
     }
-});
-
-// Make sure the popup is updated at least once per minute, even if the user doesn't open the popup. Sometimes this doesn't happen. Why? Good question.
-chrome.runtime.onInstalled.addListener(() => {
-    if (chrome.alarms) chrome.alarms.create('event-peeper:tick', {periodInMinutes: 1});
 });
 
 chrome.alarms?.onAlarm.addListener((alarm) => {
