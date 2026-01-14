@@ -1,5 +1,5 @@
-const API_URL = 'https://event-api.certainhuman.com/event';
-const SERVERS_URL = 'https://event-api.certainhuman.com/servers';
+const API_URL = 'https://dsa-api.certainhuman.com/v1/missions/current';
+const SERVERS_URL = 'https://dsa-api.certainhuman.com/v1/game/servers';
 
 let caches = {};
 

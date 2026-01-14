@@ -19,7 +19,7 @@
   },
 
   "permissions": [
-    "https://event-api.certainhuman.com/*",
+    "https://dsa-api.certainhuman.com/*",
     "alarms"
   ],
 
