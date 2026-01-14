@@ -15,7 +15,7 @@
   "homepage_url": "https://github.com/certainhuman/eventpeeper",
   "offline_enabled": false,
   "host_permissions": [
-    "https://event-api.certainhuman.com/*"
+    "https://dsa-api.certainhuman.com/*"
   ],
   "permissions": [
     "alarms"
