@@ -434,6 +434,12 @@
             color: color-mix(in oklab, currentColor 70%, transparent);
         }
 
+        .credits .right {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
         .credits a {
             color: inherit;
             text-decoration: none;
@@ -455,7 +461,7 @@
     <div class="header-info">
         <div class="header-info-item">
             <span class="rate-limit-text" id="rateLimitText">—</span>
-            <div class="rate-limit-bar" id="rateLimitBar" data-level="low">
+            <div class="rate-limit-bar" data-level="low" id="rateLimitBar">
                 <div class="rate-limit-fill" id="rateLimitFill" style="width: 0%"></div>
             </div>
         </div>
@@ -469,16 +475,16 @@
         </div>
     </div>
     <div class="header-actions">
-        <button id="refreshBtn" title="Refresh now" aria-label="Refresh">
-            <svg class="icon" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button aria-label="Refresh" id="refreshBtn" title="Refresh now">
+            <svg aria-hidden="true" class="icon" fill="none" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
                 <polyline points="23 4 23 10 17 10"/>
                 <polyline points="1 20 1 14 7 14"/>
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
                 <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/>
             </svg>
-            <svg class="check" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="3"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg aria-hidden="true" class="check" fill="none" stroke="currentColor" stroke-linecap="round"
+                 stroke-linejoin="round" stroke-width="3" viewBox="0 0 24 24">
                 <polyline points="20 6 9 17 4 12"/>
             </svg>
         </button>
@@ -487,15 +493,16 @@
 
 <div id="error"></div>
 
-<div id="content" class="loading">
-    <div id="rows" class="cards"></div>
+<div class="loading" id="content">
+    <div class="cards" id="rows"></div>
     <div class="credits">
         <div class="left">
-            <small class="muted">Data from event-api.certainhuman.com</small>
+            <small class="muted" id="apiUrlText">Data from dsa-api.certainhuman.com</small>
         </div>
         <div class="right">
-            <small>by <a href="https://github.com/certainhuman/" target="_blank"
-                         rel="noopener noreferrer">HaveFun</a></small>
+            <small class="muted" id="versionText" style="margin-right: 8px;">v1.4.1</small>
+            <small>by <a href="https://github.com/certainhuman/" rel="noopener noreferrer"
+                         target="_blank">HaveFun</a></small>
         </div>
     </div>
 </div>

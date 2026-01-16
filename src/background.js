@@ -1,3 +1,4 @@
+const VERSION = '1.4.1';
 const API_URL = 'https://dsa-api.certainhuman.com/v1/missions/current';
 const SERVERS_URL = 'https://dsa-api.certainhuman.com/v1/game/servers';
 
@@ -11,7 +12,11 @@ async function fetchServersOnce() {
     if (serversPromise) return serversPromise;
     serversPromise = (async () => {
         try {
-            const res = await fetch(SERVERS_URL, {cache: 'no-cache'});
+            const res = await fetch(SERVERS_URL, {
+                cache: 'no-cache', headers: {
+                    'User-Agent': `EventPeeper/${VERSION}`, 'X-App-Version': VERSION
+                }
+            });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const body = await res.json();
             const list = Array.isArray(body?.servers) ? body.servers : [];
@@ -37,7 +42,6 @@ function getServerName(serverId) {
     return s?.name ?? String(serverId);
 }
 
-// Global rate limiting (across all servers)
 const RATE_WINDOW_MS = 10_000;
 const RATE_MAX_REQUESTS = 10;
 const globalRequestTimes = [];
@@ -134,10 +138,11 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
     inFlight[server] = (async () => {
         try {
             const res = await fetch(`${API_URL}?server=${encodeURIComponent(server)}`, {
-                cache: 'no-cache',
-                headers: {
+                cache: 'no-cache', headers: {
                     'Cache-Control': 'no-cache',
-                    'Pragma': 'no-cache'
+                    'Pragma': 'no-cache',
+                    'User-Agent': `EventPeeper/${VERSION}`,
+                    'X-App-Version': VERSION
                 }
             });
 
@@ -206,6 +211,11 @@ function notifyPopup(server) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const {type, forced, server} = message || {};
     const serverId = Number.isInteger(server) ? server : null;
+
+    if (type === 'event-peeper:get-version') {
+        sendResponse({version: VERSION, apiUrl: API_URL.split('/v1/')[0]});
+        return true;
+    }
 
     if (type === 'event-peeper:get-servers') {
         fetchServersOnce().then((list) => {

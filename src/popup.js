@@ -45,8 +45,7 @@ function updateHeaderInfo() {
         let announcedCount = 0;
         serverIds.forEach(id => {
             const state = snapshotState(last[id]);
-            if (state === 'open') openCount++;
-            else if (state === 'announced') announcedCount++;
+            if (state === 'open') openCount++; else if (state === 'announced') announcedCount++;
         });
 
         if (openCount > 0 && announcedCount > 0) {
@@ -59,7 +58,7 @@ function updateHeaderInfo() {
             elems.activeEvents.textContent = 'No events';
         }
     }
-}// noinspection JSUnresolvedReference,GrazieInspection
+}
 
 const elems = {
     content: document.getElementById('content'),
@@ -71,6 +70,8 @@ const elems = {
     rateLimitBar: document.getElementById('rateLimitBar'),
     lastUpdate: document.getElementById('lastUpdate'),
     activeEvents: document.getElementById('activeEvents'),
+    apiUrlText: document.getElementById('apiUrlText'),
+    versionText: document.getElementById('versionText'),
 };
 
 let countdownTimers = {};
@@ -227,13 +228,9 @@ async function maybeAutoRefreshOnZero(server) {
             const openTime = effectiveOpenTime(server, snap);
             if (openTime) {
                 last[server] = {
-                    ...snap,
-                    data: {
-                        type: 'open',
-                        event: {
-                            name: snap.data?.event?.name,
-                            open_time: openTime,
-                            close_time: openTime + OPEN_WINDOW_SEC
+                    ...snap, data: {
+                        type: 'open', event: {
+                            name: snap.data?.event?.name, open_time: openTime, close_time: openTime + OPEN_WINDOW_SEC
                         }
                     }
                 };
@@ -244,10 +241,8 @@ async function maybeAutoRefreshOnZero(server) {
             const closeTime = snap.data?.event?.close_time || (snap.data?.event?.open_time + OPEN_WINDOW_SEC);
             if (closeTime) {
                 last[server] = {
-                    ...snap,
-                    data: {
-                        type: 'closed',
-                        predicted_open_time: closeTime + COOLDOWN_GAP_SEC
+                    ...snap, data: {
+                        type: 'closed', predicted_open_time: closeTime + COOLDOWN_GAP_SEC
                     }
                 };
                 lastCloseTime[server] = closeTime;
@@ -448,12 +443,7 @@ function renderAll() {
         }
         if (nameEls[id]) nameEls[id].textContent = evtName;
         let statusText = '—';
-        if (st === 'open') statusText = 'Open';
-        else if (st === 'closed') statusText = 'Closed';
-        else if (st === 'announced') statusText = 'Announced';
-        else if (st === 'checking') statusText = 'Checking…';
-        else if (st === 'loading') statusText = 'Loading…';
-        else if (st === 'error') statusText = 'Error';
+        if (st === 'open') statusText = 'Open'; else if (st === 'closed') statusText = 'Closed'; else if (st === 'announced') statusText = 'Announced'; else if (st === 'checking') statusText = 'Checking…'; else if (st === 'loading') statusText = 'Loading…'; else if (st === 'error') statusText = 'Error';
         if (statusEls[id]) {
             statusEls[id].textContent = statusText;
             statusEls[id].style.display = (st === 'closed') ? 'none' : '';
@@ -489,12 +479,7 @@ function renderAll() {
             if (countdownEls[id]) countdownEls[id].textContent = typeof tgt2 === 'number' ? formatCooldown(tgt2) : '—';
             const st2 = snapshotState(snap);
             let statusText2 = '—';
-            if (st2 === 'open') statusText2 = 'Open';
-            else if (st2 === 'closed') statusText2 = 'Closed';
-            else if (st2 === 'announced') statusText2 = 'Announced';
-            else if (st2 === 'checking') statusText2 = 'Checking…';
-            else if (st2 === 'loading') statusText2 = 'Loading…';
-            else if (st2 === 'error') statusText2 = 'Error';
+            if (st2 === 'open') statusText2 = 'Open'; else if (st2 === 'closed') statusText2 = 'Closed'; else if (st2 === 'announced') statusText2 = 'Announced'; else if (st2 === 'checking') statusText2 = 'Checking…'; else if (st2 === 'loading') statusText2 = 'Loading…'; else if (st2 === 'error') statusText2 = 'Error';
             if (statusEls[id]) {
                 statusEls[id].textContent = statusText2;
                 statusEls[id].style.display = (st2 === 'closed') ? 'none' : '';
@@ -549,6 +534,14 @@ function getServers() {
     return new Promise((resolve) => {
         chrome.runtime.sendMessage({type: 'event-peeper:get-servers'}, (resp) => {
             resolve(Array.isArray(resp?.servers) ? resp.servers : []);
+        });
+    });
+}
+
+function getVersionInfo() {
+    return new Promise((resolve) => {
+        chrome.runtime.sendMessage({type: 'event-peeper:get-version'}, (resp) => {
+            resolve(resp || {version: '?', apiUrl: ''});
         });
     });
 }
@@ -633,6 +626,15 @@ function ensureRow(server) {
  * Bootstraps the popup for dynamic display.
  */
 async function initialize() {
+    // Get version info and update footer
+    const versionInfo = await getVersionInfo();
+    if (elems.versionText) {
+        elems.versionText.textContent = `v${versionInfo.version}`;
+    }
+    if (elems.apiUrlText && versionInfo.apiUrl) {
+        elems.apiUrlText.textContent = `Data from ${versionInfo.apiUrl.replace("https://", '')}`;
+    }
+
     const servers = await getServers();
     if (Array.isArray(servers) && servers.length) {
         serverIds = servers.map(s => s.server_id);
