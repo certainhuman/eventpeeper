@@ -20,7 +20,8 @@
 
   "permissions": [
     "https://dsa-api.certainhuman.com/*",
-    "alarms"
+    "alarms",
+    "storage"
   ],
 
   "background": {

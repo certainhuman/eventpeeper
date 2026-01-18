@@ -18,7 +18,8 @@
     "https://dsa-api.certainhuman.com/*"
   ],
   "permissions": [
-    "alarms"
+    "alarms",
+    "storage"
   ],
   "background": {
     "service_worker": "background.js"

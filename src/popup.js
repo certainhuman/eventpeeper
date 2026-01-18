@@ -81,15 +81,10 @@ let ringEls = {};
 let ringCirc = {};
 let statusEls = {};
 
-// Event status timings and ring logic
-// - Closed: 27 minutes until the next announcement (cooldown).
-// - Announced: 3 minutes until the event opens.
-// - Open: 15 minutes until the event closes.
-// The countdown ring is a countdown: it starts full and shrinks to empty by the target moment.
 const COOLDOWN_GAP_SEC = 27 * 60; // 27 minutes between close and the next announcement
 const OPEN_WINDOW_SEC = 15 * 60; // 15 minutes open duration
 const ANNOUNCE_WINDOW_SEC = 3 * 60; // 3 minutes pre-open announcement
-let lastCloseTime = {}; // per-server last known close_time used to synthesize announcement/open when needed
+let lastCloseTime = {};
 
 
 /**
@@ -193,86 +188,13 @@ function startTimer(server, targetTsSec, renderFn) {
     const tick = async () => {
         try {
             renderFn();
-            maybeAutoRefreshOnZero(server);
+            // Note: We no longer trigger API queries on countdown zero
+            // The background script handles state prediction
         } catch (e) {
             // ignore timer errors to keep UI alive (not that we expect them)
         }
     };
     countdownTimers[server] = setInterval(tick, 1000);
-}
-
-/**
- * Checks server countdown and triggers a one-shot auto refresh when it crosses zero.
- */
-async function maybeAutoRefreshOnZero(server) {
-    const snap = last[server];
-    const tgt = targetTs(server, snap);
-    if (typeof tgt !== 'number') return;
-    const now = Math.floor(Date.now() / 1000);
-    const remaining = tgt - now;
-    // Trigger a refresh when we cross zero, but only once per crossing
-    if (remaining <= 0 && !maybeAutoRefreshOnZero._refreshed?.[server]) {
-        maybeAutoRefreshOnZero._refreshed = maybeAutoRefreshOnZero._refreshed || {};
-        maybeAutoRefreshOnZero._refreshed[server] = true;
-
-        const currentState = snap?.data?.type;
-
-        // Only show "checking" state when transitioning from closed to announced
-        // For other transitions, optimistically update the UI immediately
-        if (currentState === 'closed') {
-            // Show checking state in UI
-            last[server] = {...snap, checking: true};
-            renderAll();
-        } else if (currentState === 'announced') {
-            // Optimistically assume event opened
-            const openTime = effectiveOpenTime(server, snap);
-            if (openTime) {
-                last[server] = {
-                    ...snap, data: {
-                        type: 'open', event: {
-                            name: snap.data?.event?.name, open_time: openTime, close_time: openTime + OPEN_WINDOW_SEC
-                        }
-                    }
-                };
-                renderAll();
-            }
-        } else if (currentState === 'open') {
-            // Optimistically assume event closed
-            const closeTime = snap.data?.event?.close_time || (snap.data?.event?.open_time + OPEN_WINDOW_SEC);
-            if (closeTime) {
-                last[server] = {
-                    ...snap, data: {
-                        type: 'closed', predicted_open_time: closeTime + COOLDOWN_GAP_SEC
-                    }
-                };
-                lastCloseTime[server] = closeTime;
-                renderAll();
-            }
-        }
-
-        // Now fetch actual data in the background
-        const resp = await requestRefreshAll();
-        if (resp && typeof resp === 'object') {
-            Object.keys(resp).forEach((k) => {
-                const id = Number(k);
-                if (!Number.isNaN(id)) {
-                    const updated = resp[id];
-                    if (updated && !updated.checking) {
-                        last[id] = updated;
-                    }
-                }
-            });
-        }
-        renderAll();
-        // After refresh, allow future auto-refreshes when a new positive countdown appears
-        setTimeout(() => {
-            maybeAutoRefreshOnZero._refreshed[server] = false;
-        }, 2000);
-    } else if (remaining > 1) {
-        // If countdown is back in positive territory, clear the one-shot flag
-        maybeAutoRefreshOnZero._refreshed = maybeAutoRefreshOnZero._refreshed || {};
-        maybeAutoRefreshOnZero._refreshed[server] = false;
-    }
 }
 
 
