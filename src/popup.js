@@ -1,3 +1,5 @@
+// noinspection JSUnresolvedReference
+
 function updateHeaderInfo() {
     if (elems.rateLimitText && elems.rateLimitFill && elems.rateLimitBar) {
         const used = rateLimitInfo.used || 0;
@@ -84,7 +86,7 @@ let statusEls = {};
 const COOLDOWN_GAP_SEC = 27 * 60; // 27 minutes between close and the next announcement
 const OPEN_WINDOW_SEC = 15 * 60; // 15 minutes open duration
 const ANNOUNCE_WINDOW_SEC = 3 * 60; // 3 minutes pre-open announcement
-let lastCloseTime = {};
+let lastCloseTime = {}; // per-server last known close_time used to synthesize announcement/open when needed
 
 
 /**
@@ -185,13 +187,31 @@ function clearTimer(server) {
 function startTimer(server, targetTsSec, renderFn) {
     clearTimer(server);
     if (!targetTsSec) return;
+
+    let hasTriggeredRefresh = false;
+
     const tick = async () => {
         try {
             renderFn();
-            // Note: We no longer trigger API queries on countdown zero
-            // The background script handles state prediction
+
+            const snap = last[server];
+            const now = Math.floor(Date.now() / 1000);
+            const target = targetTs(server, snap);
+
+            if (target && now >= target && !hasTriggeredRefresh) {
+                hasTriggeredRefresh = true;
+
+                chrome.runtime.sendMessage({type: 'event-peeper:refresh', server, forced: false}, (updated) => {
+                    if (updated) {
+                        last[server] = updated;
+                        renderAll();
+                    }
+                    setTimeout(() => {
+                        hasTriggeredRefresh = false;
+                    }, 5000);
+                });
+            }
         } catch (e) {
-            // ignore timer errors to keep UI alive (not that we expect them)
         }
     };
     countdownTimers[server] = setInterval(tick, 1000);

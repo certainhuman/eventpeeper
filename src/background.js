@@ -278,7 +278,6 @@ async function fetchFromAPI({forced = false, server = 1} = {}) {
         }
     }
 
-    console.log(`[Server ${server}] Making API call (forced: ${forced})`);
     caches[server] = {...cache, loading: true, error: null};
     notifyPopup(server);
 
