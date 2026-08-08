@@ -55,39 +55,28 @@
             gap: 6px;
             white-space: nowrap;
         }
-
-        .rate-limit-bar {
-            width: 50px;
-            height: 4px;
-            background: color-mix(in oklab, CanvasText 15%, transparent);
-            border-radius: 2px;
-            overflow: hidden;
-            position: relative;
+        .page-tabs {
+            display: flex;
+            gap: 3px;
+            margin-left: auto;
         }
-
-        .rate-limit-fill {
-            height: 100%;
-            background: currentColor;
-            transition: width 0.2s ease;
-            position: absolute;
-            left: 0;
-            top: 0;
+        .page-tab {
+            border: 0;
+            border-radius: 6px;
+            padding: 4px 7px;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            font-size: 10px;
+            cursor: pointer;
+            opacity: 0.6;
         }
-
-        .rate-limit-text {
-            font-variant-numeric: tabular-nums;
+        .page-tab.active {
+            background: color-mix(in oklab, CanvasText 12%, Canvas);
+            opacity: 1;
         }
-
-        .rate-limit-bar[data-level="low"] .rate-limit-fill {
-            color: #2ecc71;
-        }
-
-        .rate-limit-bar[data-level="medium"] .rate-limit-fill {
-            color: #f1c40f;
-        }
-
-        .rate-limit-bar[data-level="high"] .rate-limit-fill {
-            color: #e74c3c;
+        .page.hidden {
+            display: none;
         }
 
         .header-separator {
@@ -105,6 +94,57 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 10px;
+        }
+        .section-title {
+            margin: 14px 2px 6px;
+            text-align: center;
+            font-size: 12px;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+        .next-mission {
+            margin-top: 8px;
+            font-size: 11px;
+        }
+        .pvp-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px;
+            border: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+            border-radius: 8px;
+            font-size: 12px;
+        }
+        .pvp-event-info {
+            min-width: 0;
+        }
+        .pvp-event-server {
+            font-weight: 700;
+        }
+        .pvp-event-time {
+            margin-top: 3px;
+            font-size: 10px;
+        }
+        .pvp-event-countdown {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: center;
+            white-space: nowrap;
+        }
+        .pvp-event-label {
+            font-size: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            opacity: 0.65;
+        }
+        .pvp-event-value {
+            margin-top: 2px;
+            font-size: 15px;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #fff;
         }
 
         .card {
@@ -175,6 +215,26 @@
             font-size: 13px;
             opacity: 0.95;
         }
+        .instance-separator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            grid-column: 1 / -1;
+            min-height: 10px;
+            margin: 4px 2px 2px;
+            color: #7f8c8d;
+            font-size: 9px;
+            line-height: 1;
+            letter-spacing: 0.8px;
+            text-align: center;
+        }
+        .instance-separator::before,
+        .instance-separator::after {
+            content: "";
+            height: 1px;
+            flex: 1;
+            background: color-mix(in oklab, currentColor 35%, transparent);
+        }
 
         .card-meta {
             margin-top: 6px;
@@ -207,6 +267,28 @@
 
         .card.state-error {
             border-color: #e74c3c;
+        }
+        .card.state-inactive {
+            border-color: #7f8c8d;
+            --accent: #7f8c8d;
+            background: color-mix(in oklab, CanvasText 8%, Canvas);
+        }
+        .card.state-inactive::before {
+            background-image: repeating-linear-gradient(
+                135deg,
+                transparent 0,
+                transparent 10px,
+                color-mix(in oklab, CanvasText 7%, transparent) 10px,
+                color-mix(in oklab, CanvasText 7%, transparent) 11px
+            );
+            opacity: 0.7;
+        }
+        .card.state-inactive .ring-track {
+            stroke: #687477;
+            opacity: 0.7;
+        }
+        .card.state-inactive .ring-progress {
+            stroke: #9aa8ab;
         }
 
         /* Header with countdown */
@@ -260,6 +342,18 @@
             place-items: center;
             font-size: 14px;
             font-weight: 700;
+        }
+        .countdown-label {
+            position: absolute;
+            top: 23px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 7px;
+            line-height: 1;
+            font-weight: 600;
+            opacity: 0.75;
+            pointer-events: none;
         }
 
         /* State color variables */
@@ -459,12 +553,6 @@
 <header>
     <h1>Event Peeper</h1>
     <div class="header-info">
-        <div class="header-info-item">
-            <span class="rate-limit-text" id="rateLimitText">—</span>
-            <div class="rate-limit-bar" data-level="low" id="rateLimitBar">
-                <div class="rate-limit-fill" id="rateLimitFill" style="width: 0%"></div>
-            </div>
-        </div>
         <div class="header-separator"></div>
         <div class="header-info-item">
             <span class="last-update" id="lastUpdate">—</span>
@@ -473,6 +561,10 @@
         <div class="header-info-item">
             <span id="activeEvents">—</span>
         </div>
+    </div>
+    <div class="page-tabs" role="tablist">
+        <button class="page-tab active" id="missionsTab" role="tab" aria-selected="true">Missions</button>
+        <button class="page-tab" id="pvpTab" role="tab" aria-selected="false">PvP Events</button>
     </div>
     <div class="header-actions">
         <button aria-label="Refresh" id="refreshBtn" title="Refresh now">
@@ -491,22 +583,28 @@
     </div>
 </header>
 
-<div id="error"></div>
+    <div id="error"></div>
 
 <div class="loading" id="content">
-    <div class="cards" id="rows"></div>
+    <div class="page" id="missionsPage">
+    <div class="cards" id="serverRows"></div>
+    </div>
+    <div class="page hidden" id="pvpPage">
+    <div class="cards" id="pvpRows"></div>
+    </div>
     <div class="credits">
         <div class="left">
             <small class="muted" id="apiUrlText">Data from dsa-api.certainhuman.com</small>
         </div>
         <div class="right">
-            <small class="muted" id="versionText" style="margin-right: 8px;">v1.4.1</small>
+            <small class="muted" id="versionText" style="margin-right: 8px;">v2.0.0</small>
             <small>by <a href="https://github.com/certainhuman/" rel="noopener noreferrer"
                          target="_blank">HaveFun</a></small>
         </div>
     </div>
 </div>
 
+<script src="v2-model.js"></script>
 <script src="popup.js" type="module"></script>
 </body>
 </html>
