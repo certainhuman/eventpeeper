@@ -1,4 +1,5 @@
 const model = globalThis.EventPeeperV2;
+const ACTIVE_PAGE_KEY = 'event-peeper:active-page';
 const elems = {
     content: document.getElementById('content'), error: document.getElementById('error'), refreshBtn: document.getElementById('refreshBtn'),
     serverRows: document.getElementById('serverRows'), pvpRows: document.getElementById('pvpRows'),
@@ -7,7 +8,10 @@ const elems = {
 let snapshot = {servers: {prod: [], test: []}, missionServers: {prod: [], test: []}, pvpEvents: [], loading: true, errors: {}};
 let refreshInFlight = false;
 function now() { return Math.floor(Date.now() / 1000); }
-function setPage(page) {
+function saveActivePage(page) {
+    if (chrome.storage?.session) chrome.storage.session.set({[ACTIVE_PAGE_KEY]: page});
+}
+function setPage(page, persist = true) {
     const pvp = page === 'pvp';
     elems.missionsPage.classList.toggle('hidden', pvp);
     elems.pvpPage.classList.toggle('hidden', !pvp);
@@ -15,6 +19,13 @@ function setPage(page) {
     elems.pvpTab.classList.toggle('active', pvp);
     elems.missionsTab.setAttribute('aria-selected', String(!pvp));
     elems.pvpTab.setAttribute('aria-selected', String(pvp));
+    if (persist) saveActivePage(pvp ? 'pvp' : 'missions');
+}
+function getActivePage() {
+    return new Promise(resolve => {
+        if (!chrome.storage?.session) return resolve('missions');
+        chrome.storage.session.get(ACTIVE_PAGE_KEY, result => resolve(result?.[ACTIVE_PAGE_KEY] === 'pvp' ? 'pvp' : 'missions'));
+    });
 }
 function formatTime(seconds) {
     if (!Number.isFinite(Number(seconds))) return '—';
@@ -144,6 +155,7 @@ function refresh() {
     });
 }
 async function initialize() {
+    setPage(await getActivePage(), false);
     const version = await getVersion();
     elems.versionText.textContent = 'v' + (version?.version || '?');
     elems.apiUrlText.textContent = 'Data from ' + (version?.apiUrl || '').replace('https://', '');
