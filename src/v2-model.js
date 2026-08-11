@@ -4,6 +4,7 @@
     root.EventPeeperV2 = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     const INSTANCES = ['prod', 'test'];
+    const CLOSED_DURATION_SECONDS = 60;
     function instanceValue(body, instance) { return body?.instances?.[instance] || {}; }
     function emptyInstances() { return {prod: [], test: []}; }
     function normalizeServers(body) {
@@ -56,9 +57,9 @@
         const current = selection?.current;
         if (current?.status === 'announced') return Number(current.open_time_unix) || null;
         if (current?.status === 'open') return Number(current.close_time_unix) || null;
-        if (current?.status === 'closed' && server?.instance === 'test') {
+        if (current?.status === 'closed') {
             const closedAt = Number(current.close_time_unix);
-            if (Number.isFinite(closedAt) && closedAt > 0) return closedAt + 60;
+            if (Number.isFinite(closedAt) && closedAt > 0) return closedAt + CLOSED_DURATION_SECONDS;
         }
         const nextOpen = Number(selection?.next?.open_time_unix || server?.next_open_time_unix || server?.next_predicted_open_time_unix);
         if (!current) return Number.isFinite(nextOpen) && nextOpen > 0 ? nextOpen - (3 * 60) : null;
@@ -68,12 +69,12 @@
         const current = selection?.current;
         if (current?.status === 'announced') return Number(current.open_time_unix) || null;
         if (current?.status === 'open') return Number(current.close_time_unix) || null;
-        if (current?.status === 'closed' && server?.instance === 'test') {
+        if (current?.status === 'closed') {
             const closedAt = Number(current.close_time_unix);
-            if (Number.isFinite(closedAt) && closedAt > 0) return closedAt + 60;
+            if (Number.isFinite(closedAt) && closedAt > 0) return closedAt + CLOSED_DURATION_SECONDS;
         }
         const nextOpen = Number(selection?.next?.open_time_unix || server?.next_open_time_unix || server?.next_predicted_open_time_unix);
         return Number.isFinite(nextOpen) && nextOpen > 0 ? nextOpen - (3 * 60) : null;
     }
-    return {INSTANCES, normalizeServers, normalizeMissions, normalizePvp, createSnapshot, selectMissions, missionTarget, missionRefreshTarget};
+    return {INSTANCES, CLOSED_DURATION_SECONDS, normalizeServers, normalizeMissions, normalizePvp, createSnapshot, selectMissions, missionTarget, missionRefreshTarget};
 });

@@ -73,6 +73,8 @@ function updateCardTimers() {
         let progress = 0, target = Number(card.dataset.target);
         if (status === 'open' && Number.isFinite(openTime) && Number.isFinite(closeTime) && closeTime > openTime) {
             progress = (currentNow - openTime) / (closeTime - openTime); target = closeTime;
+        } else if (status === 'closed' && Number.isFinite(closeTime) && Number.isFinite(target) && target > closeTime) {
+            progress = (currentNow - closeTime) / (target - closeTime);
         } else if (status === 'announced' && Number.isFinite(openTime)) {
             progress = 1 - Math.max(0, openTime - currentNow) / (3 * 60); target = openTime;
         } else if (status === 'inactive' && Number.isFinite(target)) {
@@ -204,6 +206,9 @@ function createCard(server, missionServer) {
     if (current?.status === 'open') {
         const start = Number(current.open_time_unix), close = Number(current.close_time_unix);
         if (Number.isFinite(start) && Number.isFinite(close) && close > start) progress = (currentNow - start) / (close - start);
+    } else if (current?.status === 'closed') {
+        const closedAt = Number(current.close_time_unix);
+        if (Number.isFinite(closedAt) && Number.isFinite(target) && target > closedAt) progress = (currentNow - closedAt) / (target - closedAt);
     } else if (current?.status === 'announced') {
         const openTime = Number(current.open_time_unix);
         if (Number.isFinite(openTime)) progress = 1 - Math.max(0, openTime - currentNow) / (3 * 60);
