@@ -169,6 +169,7 @@ elems.pvpTab?.addEventListener('click', () => setPage('pvp'));
 initialize();
 function missionName(mission) { return mission?.mission_name || 'Mission'; }
 function backgroundFor(name, status) {
+    if (status === 'closed' || status === 'inactive') return null;
     const lower = String(name || '').toLowerCase();
     if (lower.includes('pit')) return 'img/pits.png';
     if (lower.includes('vulture')) return 'img/vulture.png';

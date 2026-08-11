@@ -7,6 +7,72 @@
     <style>
         :root {
             color-scheme: light dark;
+
+            /* State accents. Light mode uses deeper variants so borders and
+               rings keep the same meaning against a white canvas. */
+            --state-open: #12a150;
+            --state-announced: #b7860a;
+            --state-closed: #d43f2f;
+            --state-checking: #1f7fd0;
+            --state-inactive: #6b7778;
+
+            /* Surfaces. Light mode lifts controls off the page with white
+               fills and real shadows; dark mode tints them instead. */
+            --card-bg: color-mix(in oklab, CanvasText 2%, Canvas);
+            --card-border: color-mix(in oklab, CanvasText 14%, transparent);
+            --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.07);
+            --tab-active-bg: Canvas;
+            --tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+            --btn-surface: Canvas;
+
+            /* Card artwork. Shown at full strength in light mode — blending it
+               toward the white canvas is what washes the colours out. Legibility
+               comes from the scrim below instead, which darkens without desaturating. */
+            --bg-opacity: 1;
+            --bg-filter: saturate(1.05);
+            --bg-filter-hover: saturate(1.15) brightness(1.05);
+
+            /* Scrim: shades the left column where the text sits and fades off
+               before the art does, plus a halo under the countdown ring. */
+            --art-scrim: linear-gradient(90deg,
+            rgba(8, 10, 12, 0.66) 0%,
+            rgba(8, 10, 12, 0.5) 40%,
+            rgba(8, 10, 12, 0.26) 72%,
+            rgba(8, 10, 12, 0.22) 100%);
+            --art-halo: radial-gradient(circle,
+            rgba(8, 10, 12, 0.42) 28%,
+            rgba(8, 10, 12, 0.3) 52%,
+            rgba(8, 10, 12, 0.12) 74%,
+            rgba(8, 10, 12, 0) 100%);
+            --art-text: #fff;
+            --art-text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --state-open: #2ecc71;
+                --state-announced: #f1c40f;
+                --state-closed: #e74c3c;
+                --state-checking: #3498db;
+                --state-inactive: #7f8c8d;
+
+                --card-bg: rgba(255, 255, 255, 0.03);
+                --card-border: rgba(255, 255, 255, 0.12);
+                --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+                --tab-active-bg: color-mix(in oklab, CanvasText 12%, Canvas);
+                --tab-active-shadow: none;
+                --btn-surface: color-mix(in oklab, CanvasText 8%, Canvas);
+
+                /* Dark mode composites the art over a dark card, which darkens
+                   it on its own — no scrim needed, and CanvasText is already light. */
+                --bg-opacity: 0.7;
+                --bg-filter: saturate(0.9);
+                --bg-filter-hover: saturate(1.005) brightness(1.005);
+                --art-scrim: none;
+                --art-halo: none;
+                --art-text: CanvasText;
+                --art-text-shadow: none;
+            }
         }
 
         body {
@@ -72,7 +138,8 @@
             opacity: 0.6;
         }
         .page-tab.active {
-            background: color-mix(in oklab, CanvasText 12%, Canvas);
+            background: var(--tab-active-bg);
+            box-shadow: var(--tab-active-shadow);
             opacity: 1;
         }
         .page.hidden {
@@ -112,8 +179,10 @@
             justify-content: space-between;
             gap: 12px;
             padding: 8px 10px;
-            border: 1px solid color-mix(in oklab, CanvasText 12%, transparent);
+            border: 1px solid var(--card-border);
             border-radius: 8px;
+            background: var(--card-bg);
+            box-shadow: var(--card-shadow);
             font-size: 12px;
         }
         .pvp-event-info {
@@ -148,14 +217,19 @@
         }
 
         .card {
-            border: 1px solid var(--card-border, rgba(0, 0, 0, 0.12));
+            --accent: var(--state-inactive);
+            color: inherit;
+            border: 1px solid var(--accent);
             border-radius: 12px;
             padding: 10px 12px;
-            background: var(--card-bg, rgba(255, 255, 255, 0.03));
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-            transition: border-color 120ms, background 120ms, transform 120ms;
+            background: var(--card-bg);
+            box-shadow: var(--card-shadow);
             position: relative;
             overflow: hidden;
+            transition: background 180ms ease,
+            border-color 180ms ease,
+            box-shadow 180ms ease,
+            transform 180ms ease;
         }
 
         .card::before {
@@ -165,33 +239,27 @@
             background-image: var(--bg-image, none);
             background-size: cover;
             background-position: center;
-            opacity: var(--bg-opacity, 0.7);
-            filter: saturate(0.9);
+            opacity: var(--bg-opacity);
+            filter: var(--bg-filter);
+            pointer-events: none;
+            transition: filter 180ms ease;
+        }
+
+        .card[style*="--bg-image"]::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: var(--art-scrim);
             pointer-events: none;
         }
 
-        @media (prefers-color-scheme: light) {
-            .card::before {
-                filter: saturate(1.2) brightness(0.95);
-            }
-
-            .card[style*="--bg-image"] {
-                color: white;
-                text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-            }
-
-            .card[style*="--bg-image"] .card-title,
-            .card[style*="--bg-image"] .event-name,
-            .card[style*="--bg-image"] .card-meta {
-                color: white;
-            }
+        .card[style*="--bg-image"] {
+            color: var(--art-text);
+            text-shadow: var(--art-text-shadow);
         }
 
-        .card {
-            transition: background 180ms ease,
-            border-color 180ms ease,
-            box-shadow 180ms ease,
-            transform 180ms ease;
+        .card[style*="--bg-image"] .countdown-wrap {
+            background: var(--art-halo);
         }
 
         .card:hover {
@@ -201,7 +269,7 @@
         }
 
         .card:hover::before {
-            filter: saturate(1.005) brightness(1.005);
+            filter: var(--bg-filter-hover);
         }
 
         .card > * {
@@ -222,7 +290,7 @@
             grid-column: 1 / -1;
             min-height: 10px;
             margin: 4px 2px 2px;
-            color: #7f8c8d;
+            color: var(--state-inactive);
             font-size: 9px;
             line-height: 1;
             letter-spacing: 0.8px;
@@ -242,21 +310,20 @@
             opacity: 0.75;
         }
 
-        /* State accents */
         .card.state-open {
-            border-color: #2ecc71;
+            --accent: var(--state-open);
         }
 
         .card.state-announced {
-            border-color: #f1c40f;
+            --accent: var(--state-announced);
         }
 
         .card.state-closed {
-            border-color: #e74c3c;
+            --accent: var(--state-closed);
         }
 
         .card.state-checking {
-            border-color: #3498db;
+            --accent: var(--state-checking);
             border-style: dashed;
         }
 
@@ -266,11 +333,10 @@
         }
 
         .card.state-error {
-            border-color: #e74c3c;
+            --accent: var(--state-closed);
         }
         .card.state-inactive {
-            border-color: #7f8c8d;
-            --accent: #7f8c8d;
+            --accent: var(--state-inactive);
             background: color-mix(in oklab, CanvasText 8%, Canvas);
         }
         .card.state-inactive::before {
@@ -288,17 +354,17 @@
                 135deg,
                 transparent 0,
                 transparent 10px,
-                color-mix(in oklab, #e74c3c 24%, transparent) 10px,
-                color-mix(in oklab, #e74c3c 24%, transparent) 11px
+                color-mix(in oklab, var(--state-closed) 24%, transparent) 10px,
+                color-mix(in oklab, var(--state-closed) 24%, transparent) 11px
             );
             opacity: 0.7;
         }
         .card.state-inactive .ring-track {
-            stroke: #687477;
+            stroke: color-mix(in oklab, var(--state-inactive) 45%, transparent);
             opacity: 0.7;
         }
         .card.state-inactive .ring-progress {
-            stroke: #9aa8ab;
+            stroke: color-mix(in oklab, var(--state-inactive) 80%, CanvasText);
         }
 
         /* Header with countdown */
@@ -334,8 +400,7 @@
         }
 
         .ring-track {
-            stroke: color-mix(in oklab, currentColor 25%, transparent);
-            opacity: 0.35;
+            stroke: color-mix(in oklab, currentColor 35%, transparent);
         }
 
         .ring-progress {
@@ -366,42 +431,12 @@
             pointer-events: none;
         }
 
-        /* State color variables */
-        .card {
-            --accent: #7f8c8d;
-            color: inherit;
-        }
-
-        .card.state-open {
-            --accent: #2ecc71;
-        }
-
-        .card.state-announced {
-            --accent: #f1c40f;
-        }
-
-        .card.state-closed {
-            --accent: #e74c3c;
-        }
-
-        .card.state-checking {
-            --accent: #3498db;
-        }
-
-        .card.state-error {
-            --accent: #e74c3c;
-        }
-
         .ring-progress {
             stroke: var(--accent);
         }
 
-        .ring-track {
-            stroke: currentColor;
-        }
-
         #error {
-            color: #c0392b;
+            color: var(--state-closed);
             white-space: pre-wrap;
             display: none;
             margin-bottom: 8px;
@@ -415,23 +450,20 @@
             opacity: 0.8;
         }
 
-        /* Header polish */
         .header-actions {
             display: flex;
             align-items: center;
             gap: 8px;
         }
 
-        /* Modern refresh button */
-        /* Ensure no unexpected fills inside the SVGs (default fill is black) */
         #refreshBtn svg {
             fill: none;
         }
 
         #refreshBtn {
-            --btn-bg: color-mix(in oklab, CanvasText 8%, Canvas);
+            --btn-bg: var(--btn-surface);
             --btn-fg: color-mix(in oklab, CanvasText 92%, transparent);
-            --btn-accent: #2ecc71;
+            --btn-accent: var(--state-open);
             appearance: none;
             border: none;
             background: var(--btn-bg);
@@ -482,7 +514,7 @@
             animation: spin 0.6s linear infinite;
         }
 
-        /* Finish-the-lap behavior: when loading ends mid-rotation, keep spinning until the current turn completes; show check immediately */
+        /* when loading ends mid-rotation, keep spinning until the current turn completes; show check immediately */
         header.loading-done #refreshBtn .icon {
             animation: spin 0.6s linear infinite;
         }
@@ -521,7 +553,6 @@
             font-size: 11px;
         }
 
-        /* Credits row: simple small text near bottom */
         .credits {
             margin: 12px 0 4px;
             padding: 0;
