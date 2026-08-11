@@ -144,7 +144,7 @@
             font-size: 15px;
             font-weight: 800;
             font-variant-numeric: tabular-nums;
-            color: #fff;
+            color: CanvasText;
         }
 
         .card {
@@ -165,7 +165,7 @@
             background-image: var(--bg-image, none);
             background-size: cover;
             background-position: center;
-            opacity: var(--bg-opacity, 0.18);
+            opacity: var(--bg-opacity, 0.7);
             filter: saturate(0.9);
             pointer-events: none;
         }
@@ -280,6 +280,16 @@
                 transparent 10px,
                 color-mix(in oklab, CanvasText 7%, transparent) 10px,
                 color-mix(in oklab, CanvasText 7%, transparent) 11px
+            );
+            opacity: 0.7;
+        }
+        .card.state-closed::before {
+            background-image: repeating-linear-gradient(
+                135deg,
+                transparent 0,
+                transparent 10px,
+                color-mix(in oklab, #e74c3c 24%, transparent) 10px,
+                color-mix(in oklab, #e74c3c 24%, transparent) 11px
             );
             opacity: 0.7;
         }
