@@ -1,6 +1,7 @@
-﻿$ScriptDir = $PSScriptRoot
-$SrcDir = Join-Path $ScriptDir "src"
-$BuildDir = Join-Path $ScriptDir "build"
+$ScriptDir = $PSScriptRoot
+$RootDir = Split-Path -Parent $ScriptDir
+$SrcDir = Join-Path $RootDir "src"
+$BuildDir = Join-Path $RootDir "build"
 
 if (-not (Test-Path $SrcDir)) {
     Write-Host "Error: src directory not found at $SrcDir" -ForegroundColor Red
@@ -68,12 +69,10 @@ function Create-Package {
     }
 }
 
-# Package Firefox version
 Write-Host ""
 $XpiPath = Join-Path $BuildDir "event_peeper_firefox.xpi"
 Create-Package -ManifestFile "firefox.manifest.json" -OutputFile $XpiPath
 
-# Package Chrome version
 Write-Host ""
 $ZipPath = Join-Path $BuildDir "event_peeper_chrome.zip"
 Create-Package -ManifestFile "chrome.manifest.json" -OutputFile $ZipPath

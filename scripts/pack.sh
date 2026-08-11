@@ -3,8 +3,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SRC_DIR="$SCRIPT_DIR/src"
-BUILD_DIR="$SCRIPT_DIR/build"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SRC_DIR="$ROOT_DIR/src"
+BUILD_DIR="$ROOT_DIR/build"
 
 if [ ! -d "$SRC_DIR" ]; then
     echo -e "\033[31mError: src directory not found at $SRC_DIR\033[0m"
@@ -45,7 +46,7 @@ rm -f "$XPI_PATH"
 
 cd "$TEMP_FIREFOX"
 zip -r "$XPI_PATH" . -q
-cd "$SCRIPT_DIR"
+cd "$ROOT_DIR"
 
 echo -e "\033[32mCreated: $XPI_PATH\033[0m"
 
@@ -55,7 +56,7 @@ rm -f "$ZIP_PATH"
 
 cd "$TEMP_CHROME"
 zip -r "$ZIP_PATH" . -q
-cd "$SCRIPT_DIR"
+cd "$ROOT_DIR"
 
 echo -e "\033[32mCreated: $ZIP_PATH\033[0m"
 
