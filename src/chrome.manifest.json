@@ -3,7 +3,7 @@
   "name": "Event Peeper",
   "short_name": "EventPeeper",
   "description": "Queries an unofficial Drednot event API and shows the retrieved information on upcoming events in a convenient popup.",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "action": {
     "default_title": "Event Peeper",
     "default_popup": "popup.html"
